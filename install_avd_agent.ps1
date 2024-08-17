@@ -10,27 +10,47 @@ $rdpPropertiesUrl = "https://aka.ms/avdrdpinstaller"
 $installPath = "C:\AVDInstallers"
 $registrationScriptPath = "C:\AVDInstallers\Register-VM.ps1"
 
+# Function to log messages
+function Log-Message {
+    param (
+        [string]$message
+    )
+    $logFile = "C:\AVDInstallers\install_log.txt"
+    $message | Out-File -Append -FilePath $logFile
+    Write-Output $message
+}
+
 # Create directory if not exists
 if (-not (Test-Path $installPath)) {
     New-Item -Path $installPath -ItemType Directory -ErrorAction Stop
-    Write-Output "Created directory: $installPath"
+    Log-Message "Created directory: $installPath"
 }
 
 # Download installers
-Write-Output "Downloading AVD Agent..."
-Invoke-WebRequest -Uri $agentUrl -OutFile "$installPath\avdagent.msi" -ErrorAction Stop
-Write-Output "Downloading Bootloader..."
-Invoke-WebRequest -Uri $bootloaderUrl -OutFile "$installPath\avdbootloader.msi" -ErrorAction Stop
-Write-Output "Downloading RDP Properties..."
-Invoke-WebRequest -Uri $rdpPropertiesUrl -OutFile "$installPath\avdrdpinstaller.msi" -ErrorAction Stop
+try {
+    Log-Message "Downloading AVD Agent..."
+    Invoke-WebRequest -Uri $agentUrl -OutFile "$installPath\avdagent.msi" -ErrorAction Stop
+    Log-Message "Downloading Bootloader..."
+    Invoke-WebRequest -Uri $bootloaderUrl -OutFile "$installPath\avdbootloader.msi" -ErrorAction Stop
+    Log-Message "Downloading RDP Properties..."
+    Invoke-WebRequest -Uri $rdpPropertiesUrl -OutFile "$installPath\avdrdpinstaller.msi" -ErrorAction Stop
+} catch {
+    Log-Message "Failed to download one or more installers: $_"
+    exit 1
+}
 
 # Install the AVD Agent, Bootloader, and RDP Properties
-Write-Output "Installing AVD Agent..."
-Start-Process msiexec.exe -ArgumentList "/i $installPath\avdagent.msi /quiet /norestart" -Wait -ErrorAction Stop
-Write-Output "Installing Bootloader..."
-Start-Process msiexec.exe -ArgumentList "/i $installPath\avdbootloader.msi /quiet /norestart" -Wait -ErrorAction Stop
-Write-Output "Installing RDP Properties..."
-Start-Process msiexec.exe -ArgumentList "/i $installPath\avdrdpinstaller.msi /quiet /norestart" -Wait -ErrorAction Stop
+try {
+    Log-Message "Installing AVD Agent..."
+    Start-Process msiexec.exe -ArgumentList "/i $installPath\avdagent.msi /quiet /norestart" -Wait -ErrorAction Stop
+    Log-Message "Installing Bootloader..."
+    Start-Process msiexec.exe -ArgumentList "/i $installPath\avdbootloader.msi /quiet /norestart" -Wait -ErrorAction Stop
+    Log-Message "Installing RDP Properties..."
+    Start-Process msiexec.exe -ArgumentList "/i $installPath\avdrdpinstaller.msi /quiet /norestart" -Wait -ErrorAction Stop
+} catch {
+    Log-Message "Failed to install one or more components: $_"
+    exit 1
+}
 
 # Prepare registration script
 $registrationScriptContent = @"
@@ -56,7 +76,10 @@ Write-Output "VM successfully registered to the AVD Host Pool."
 $registrationScriptContent | Out-File -FilePath $registrationScriptPath -Encoding UTF8
 
 # Execute the registration script
-Write-Output "Starting registration script..."
-Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File $registrationScriptPath -registrationToken $registrationToken" -NoNewWindow -Wait
-
-Write-Output "Installation and registration process completed."
+try {
+    Log-Message "Starting registration script..."
+    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File $registrationScriptPath -registrationToken $registrationToken" -NoNewWindow -Wait
+    Log-Message "Registration script execution completed."
+} catch {
+    Log-Message "Failed to execute the registration script: $_"
+}
